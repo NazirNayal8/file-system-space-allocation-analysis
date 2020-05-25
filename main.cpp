@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-using namespace std;  
+using namespace std;
 
 /*
   This code snippet serves as a debugger it can take an arbitrary number of
@@ -162,7 +162,7 @@ struct DirectoryTable {
     return SUCCESS;
   }
 
-  int UpdateByteLength(int fileID, int new_len) {
+  int UpdateByteLen(int fileID, int new_len) {
 
     if (!Table.count(fileID)) {
       Logger.Log("UpdateByteLength", "Given fileID does not exist");
@@ -213,6 +213,10 @@ struct ContiguousFileAllocation {
 
     File F = Table.GetFile(fileID);
 
+    if (F == NullFile) {
+      return FAIL;
+    }
+
     int old_index = F.index;
 
     for (int i = 0 ; i < F.block_len ; ++i) {
@@ -226,22 +230,16 @@ struct ContiguousFileAllocation {
       Directory[old_index + i] = EMPTY;
     }
 
-    int status = Table.RemoveFile(fileID);
+    int status = Table.UpdateIndex(fileID, new_index);
 
-    if (status == FAIL) {
-      return status;
-    }
-
-    F.index = new_index;
-
-    Table.AddFile(fileID, F);
+    if (status == FAIL) return status;
 
     return SUCCESS;
   }
 
   int ApplyCompaction(int start_index) {
 
-    int last = 0;
+    int last = start_index;
 
     for (int i = start_index ; i < MAX_BLOCKS ; ++i) {
 
@@ -259,6 +257,16 @@ struct ContiguousFileAllocation {
     }
 
     return SUCCESS;
+  }
+
+  bool CanExtend(int index, int amount) {
+
+    for (int i = index ; i < index + amount ; ++i) {
+
+      if (Directory[i] != EMPTY) return false;
+    }
+
+    return true;
   }
 
   int FindAvailableSpace(int block_num) {
@@ -290,7 +298,9 @@ struct ContiguousFileAllocation {
     for (int i = index ; i < index + length ; ++i) {
 
       if (Directory[i] != EMPTY) {
-        Logger.Log("Fill", "Cannot fill in already full slot");
+
+        string t = "(" + to_string(fileID) + "," + to_string(index) + to_string(length) + ")";
+        Logger.Log("Fill", "Cannot fill in already full slot:" + t);
         return FAIL;
       }
 
@@ -300,7 +310,7 @@ struct ContiguousFileAllocation {
     return SUCCESS;
   }
 
-  int create_file(int fileID, int file_length) {
+  int CreateFile(int fileID, int file_length) {
 
     if (Table.FileExists(fileID)) {
       Logger.Log("create_file", "Cannot create a file that already exists");
@@ -332,15 +342,79 @@ struct ContiguousFileAllocation {
       return FAIL;
     }
 
+    available_space -= block_num;
+
     return SUCCESS;
   }
 
-  void access(int fileID, int byte_offset) {
+  int Access(int fileID, int byte_offset) {
 
+    if (!Table.FileExists(fileID)) {
+      Logger.Log("Access", "Cannot access file that does not exist");
+      return FAIL;
+    }
+
+    File F = Table.GetFile(fileID);
+
+    if (F == NullFile) {
+      return FAIL;
+    }
+
+    if (F.byte_len < byte_offset) {
+      Logger.Log("Access", "Byte offset to be accessed exceeds actual file size");
+      return FAIL;
+    }
+
+    int block_offset = ByteToBlock(byte_offset);
+
+    return F.index + block_offset - 1;
   }
 
-  void extend(int fileID, int extension_amount) {
+  int Extend(int fileID, int extension_amount) {
 
+    if (!Table.FileExists(fileID)) {
+      Logger.Log("Extend", "Cannot extend file that does not exist");
+      return FAIL;
+    }
+
+    if (available_space < extension_amount) return REJECT;
+
+    File F = Table.GetFile(fileID);
+
+    if (F == NullFile) return FAIL;
+
+    if (CanExtend(F.index + F.block_len, extension_amount)) {
+
+      int status = Fill(fileID, F.index + F.block_len, extension_amount);
+
+      if (status == FAIL) {
+        return status;
+      }
+
+    } else {
+
+      ApplyCompaction(DIRECTORY_START);
+
+      int old_index = Table.GetFile(fileID).index;
+      int new_index = MAX_BLOCKS - available_space;
+
+      Move(fileID, new_index);
+
+      int status = Fill(new_index + F.block_len, extension_amount);
+
+      if(status == FAIL) {
+        return status;
+      }
+
+      ApplyCompaction(old_index);
+    }
+
+    Table.UpdateBlockLen(fileID, F.block_len + extension_amount);
+    Table.UpdateByteLen(fileID, F.byte_len + block_size * extension_amount);
+
+    available_space -= extension_amount;
+
+    return SUCCESS;
   }
 
   void shrink(int fileID, int shirinking_amount) {
@@ -352,20 +426,5 @@ struct ContiguousFileAllocation {
 
 
 int main() {
-
-  ContiguousFileAllocation CFA(1024);
-
-  CFA.create_file(7,20000);
-  CFA.create_file(8,2049);
-
-  int status  = CFA.Move(7, 50);
-
-  cout << "Status: " << status << endl;
-
-  CFA.ApplyCompaction(0);
-
-  for(int i = 0 ; i < 100 ; ++i) {
-    cout << CFA.Directory[i] << endl;
-  }
 
 }

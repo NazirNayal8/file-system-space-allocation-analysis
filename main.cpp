@@ -738,24 +738,40 @@ struct LinkedAllocation {
 
       Table.UpdateBlockLen(fileID, F.block_len - shrink_amount);
       Table.UpdateByteLen(fileID, F.byte_len - block_size * shrink_amount);
-      
+
       for (int i = 0 ; i < blocks_left - 1 ; ++i) {
         index = Directory[index].next;
       }
 
-      int temp = Directory[index].next;
+      int next = Directory[index].next;
       Directory[index].UpdateNext(END_OF_FILE);
-      index = temp;
+      index = next;
     }
 
-    while (Directory[index].next != END_OF_FILE) {
+    while (index != END_OF_FILE) {
+      int next = Directory[index].next;
       Directory[index].Empty();
-      index = Directory[index].next;
+      index = next;
     }
 
     available_space += shrink_amount;
 
     return SUCCESS;
+  }
+
+  void PrintSlice(int l, int r) {
+
+    for (int i = l ; i < r ; ++i) {
+      cout << Directory[i].ID << endl;
+    }
+  }
+
+  void ExploreTable() {
+
+    for (auto el : Table.Table) {
+      File F = el.second;
+      cout << el.first << " : " << F.index << " " << F.block_len << " " << F.byte_len << endl;
+    }
   }
 
 };
@@ -765,9 +781,30 @@ struct LinkedAllocation {
 int main() {
 
   LinkedAllocation LA(1024);
+  ContiguousAllocation CA(1024);
 
-  LA.CreateFile(3, 40000);
+  LA.CreateFile(3, 10000);
+  CA.CreateFile(3, 10000);
+  
+  LA.PrintSlice(0, 20);
+  puts("");
+  CA.PrintSlice(0, 20);
+  puts("");
 
-  cout << LA.Access(3, 30000) << endl;
+  LA.Shrink(3, 3);
+  CA.Shrink(3, 3);
+
+  LA.PrintSlice(0, 20);
+  puts("");
+  CA.PrintSlice(0, 20);
+  puts("");
+
+  LA.Extend(3, 1);
+  CA.Extend(3, 1);
+
+  LA.PrintSlice(0, 20);
+  puts("");
+  CA.PrintSlice(0, 20);
+  puts("");
 
 }

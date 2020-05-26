@@ -640,7 +640,7 @@ struct LinkedAllocation {
 
     int index = Table.GetFile(fileID).index;
 
-    while(block_size < byte_offset) {
+    while (block_size < byte_offset) {
       byte_offset -= block_size;
       index = Directory[index].next;
     }
@@ -660,6 +660,49 @@ struct LinkedAllocation {
       return REJECT;
     }
 
+    File F = Table.GetFile(fileID);
+
+    if (F == NullFile) {
+      return FAIL;
+    }
+
+    vector<int> space = FindAvailableSpace(extension_amount);
+
+    if (space.size() != extension_amount) {
+      Logger.Log("Extend", "Number of Slots found does not match requested number.");
+      return FAIL;
+    }
+
+    int index = F.index;
+
+    while (Directory[index].next != END_OF_FILE) {
+      index = Directory[index].next;
+    }
+
+    Directory[index].next = space[0];
+
+    for (int i = 0 ; i < space.size() ; ++i) {
+
+      int x = space[i];
+
+      if (Directory[x].status != EMPTY) {
+        Logger.Log("CreateFile", "Expected an empty space in directory, but it is not empty");
+        return FAIL;
+      }
+
+      Directory[x].Fill(fileID);
+
+      if (i + 1 < space.size()) {
+        int next = space[i + 1];
+        Directory[x].UpdateNext(next);
+      }
+    }
+
+    Table.UpdateBlockLen(fileID, F.block_len + extension_amount);
+    Table.UpdateByteLen(fileID, F.byte_len + block_size * extension_amount);
+
+    available_space -= extension_amount;
+
     return SUCCESS;
   }
 
@@ -669,6 +712,48 @@ struct LinkedAllocation {
       Logger.Log("Shrink", "Cannot shrink file that does not exist");
       return FAIL;
     }
+
+    File F = Table.GetFile(fileID);
+
+    if (F == NullFile) {
+      return FAIL;
+    }
+
+    if (F.block_len < shrink_amount) {
+      Logger.Log("Shrink", "Shrink aborted because shrink amount is greater than file size");
+      return FAIL;
+    }
+
+    int blocks_left = F.block_len - shrink_amount;
+
+    int index = F.index;
+
+    if (blocks_left == 0) {
+
+      int status = Table.RemoveFile(fileID);
+
+      if (status == FAIL) return status;
+
+    } else {
+
+      Table.UpdateBlockLen(fileID, F.block_len - shrink_amount);
+      Table.UpdateByteLen(fileID, F.byte_len - block_size * shrink_amount);
+      
+      for (int i = 0 ; i < blocks_left - 1 ; ++i) {
+        index = Directory[index].next;
+      }
+
+      int temp = Directory[index].next;
+      Directory[index].UpdateNext(END_OF_FILE);
+      index = temp;
+    }
+
+    while (Directory[index].next != END_OF_FILE) {
+      Directory[index].Empty();
+      index = Directory[index].next;
+    }
+
+    available_space += shrink_amount;
 
     return SUCCESS;
   }
@@ -680,7 +765,6 @@ struct LinkedAllocation {
 int main() {
 
   LinkedAllocation LA(1024);
-
 
   LA.CreateFile(3, 40000);
 

@@ -9,6 +9,7 @@
 #include <string.h>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 using namespace std;
 
@@ -66,7 +67,9 @@ void _print(T t, V... v) {
 #define SUCCESS 2
 #define REJECT 3
 
+#define END_OF_FILE -1
 #define DIRECTORY_START 0
+#define NULL_ID -1
 
 struct IssueLogger {
 
@@ -106,7 +109,7 @@ File NullFile = File(-1, -1, -1);
 
 struct DirectoryTable {
 
-  map<int, File> Table;
+  unordered_map<int, File> Table;
   IssueLogger Logger;
 
   DirectoryTable(): Logger(IssueLogger("DirectoryTable")) {}
@@ -182,12 +185,14 @@ struct DirectoryTable {
     }
 
     Table[fileID].block_len = new_len;
+
+    return SUCCESS;
   }
 
 };
 
 
-struct ContiguousFileAllocation {
+struct ContiguousAllocation {
 
   int block_size;
   int available_space;
@@ -195,12 +200,12 @@ struct ContiguousFileAllocation {
   DirectoryTable Table;
   IssueLogger Logger;
 
-  ContiguousFileAllocation(int _block_size) {
+  ContiguousAllocation(int _block_size) {
 
     block_size = _block_size;
     available_space = MAX_BLOCKS;
     Table = DirectoryTable();
-    Logger = IssueLogger("ContiguousFileAllocation");
+    Logger = IssueLogger("ContiguousAllocation");
     memset(Directory, EMPTY, sizeof(Directory));
   }
 
@@ -310,6 +315,21 @@ struct ContiguousFileAllocation {
     return SUCCESS;
   }
 
+  int Empty(int index, int length) {
+
+    for (int i = index ; i < index + length ; ++i) {
+
+      if (Directory[i] == EMPTY) {
+        Logger.Log("Emty", "Attempting to Empty an already Empty spot, this should not happen");
+        return FAIL;
+      }
+
+      Directory[i] = EMPTY;
+    }
+
+    return SUCCESS;
+  }
+
   int CreateFile(int fileID, int file_length) {
 
     if (Table.FileExists(fileID)) {
@@ -319,7 +339,10 @@ struct ContiguousFileAllocation {
 
     int block_num = ByteToBlock(file_length);
 
-    if (block_num > available_space) return REJECT;
+    if (block_num > available_space) {
+      Logger.Log("CreateFile", "Creation Rejected due to insufficient space");
+      return REJECT;
+    }
 
     int index = FindAvailableSpace(block_num), status;
 
@@ -377,7 +400,10 @@ struct ContiguousFileAllocation {
       return FAIL;
     }
 
-    if (available_space < extension_amount) return REJECT;
+    if (available_space < extension_amount) {
+      Logger.Log("Extend", "Extension Rejected due to insufficient space");
+      return REJECT;
+    }
 
     File F = Table.GetFile(fileID);
 
@@ -400,9 +426,9 @@ struct ContiguousFileAllocation {
 
       Move(fileID, new_index);
 
-      int status = Fill(new_index + F.block_len, extension_amount);
+      int status = Fill(fileID, new_index + F.block_len, extension_amount);
 
-      if(status == FAIL) {
+      if (status == FAIL) {
         return status;
       }
 
@@ -417,8 +443,234 @@ struct ContiguousFileAllocation {
     return SUCCESS;
   }
 
-  void shrink(int fileID, int shirinking_amount) {
+  int Shrink(int fileID, int shrink_amount) {
 
+    if (!Table.FileExists(fileID)) {
+      Logger.Log("Shrink", "Cannot shrink file that does not exist");
+      return FAIL;
+    }
+
+    File F = Table.GetFile(fileID);
+
+    if (F == NullFile) {
+      return FAIL;
+    }
+
+    if (F.block_len < shrink_amount) {
+      Logger.Log("Shrink", "Shrink aborted because shrink amount is greater than file size");
+      return FAIL;
+    }
+
+    int blocks_left = F.block_len - shrink_amount;
+
+    int status = Empty(F.index + blocks_left, shrink_amount);
+
+    if (status == FAIL) {
+      return status;
+    }
+
+    if (blocks_left == 0) {
+
+      status = Table.RemoveFile(fileID);
+
+      if (status == FAIL) {
+        return FAIL;
+      }
+
+    } else {
+
+      Table.UpdateBlockLen(fileID, blocks_left);
+      Table.UpdateByteLen(fileID, F.byte_len - block_size * shrink_amount);
+    }
+
+    available_space += shrink_amount;
+
+    return SUCCESS;
+  }
+
+  void PrintSlice(int l, int r) {
+
+    for (int i = l ; i < r ; ++i) {
+      cout << Directory[i] << endl;
+    }
+  }
+
+  void ExploreTable() {
+
+    for (auto el : Table.Table) {
+      File F = el.second;
+      cout << el.first << " : " << F.index << " " << F.block_len << " " << F.byte_len << endl;
+    }
+  }
+
+};
+
+struct LinkedFile {
+
+  int status;
+  int next;
+  int ID;
+
+  LinkedFile(): ID(-1), next(END_OF_FILE), status(EMPTY) {}
+  LinkedFile(int _ID): ID(_ID), next(END_OF_FILE), status(EMPTY) {}
+
+  void Fill(int _ID) {
+    status = _ID;
+    ID = _ID;
+  }
+
+  void Empty() {
+    status = EMPTY;
+    ID = NULL_ID;
+    next = END_OF_FILE;
+  }
+
+  void UpdateNext(int new_next) {
+    next = new_next;
+  }
+
+  void UpdateStatus(int new_status) {
+    status = new_status;
+  }
+
+};
+
+struct LinkedAllocation {
+
+  int block_size;
+  int available_space;
+  DirectoryTable Table;
+  LinkedFile Directory[MAX_BLOCKS];
+  IssueLogger Logger;
+
+  LinkedAllocation(int _block_size) {
+    Table = DirectoryTable();
+    block_size = _block_size;
+    Logger = IssueLogger("LinkedAllocation");
+    available_space = MAX_BLOCKS;
+  }
+
+  int ByteToBlock(int length) {
+
+    return (length + block_size - 1) / block_size;
+  }
+
+  vector<int> FindAvailableSpace(int block_num) {
+
+    vector<int> Res;
+
+    for (int i = 0 ; i < MAX_BLOCKS ; ++i) {
+      if (Directory[i].status == EMPTY) {
+        Res.push_back(i);
+      }
+
+      if (Res.size() == block_num) return Res;
+    }
+
+    return Res;
+  }
+
+  int CreateFile(int fileID, int file_length) {
+
+    if (Table.FileExists(fileID)) {
+      Logger.Log("create_file", "Cannot create a file that already exists");
+      return FAIL;
+    }
+
+    int block_num = ByteToBlock(file_length);
+
+    if (block_num > available_space) {
+      Logger.Log("CreateFile", "Creation Rejected due to insufficient space");
+      return REJECT;
+    }
+
+    vector<int> space = FindAvailableSpace(block_num);
+
+    if (space.size() != block_num) {
+      Logger.Log("CreateFile", "Number of Slots found does not match requested number.");
+      return FAIL;
+    }
+
+    for (int i = 0 ; i < block_num ; ++i) {
+
+      int x = space[i];
+
+      if (Directory[x].status != EMPTY) {
+        Logger.Log("CreateFile", "Expected an empty space in directory, but it is not empty");
+        return FAIL;
+      }
+
+      Directory[x].Fill(fileID);
+
+      if (i + 1 < block_num) {
+
+        int next = space[i + 1];
+        Directory[x].UpdateNext(next);
+      }
+    }
+
+    int status = Table.AddFile(fileID, File(space[0], block_num, file_length));
+
+    if (status == FAIL) {
+      return status;
+    }
+
+    available_space -= block_num;
+
+    return SUCCESS;
+  }
+
+  int Access(int fileID, int byte_offset) {
+
+    if (!Table.FileExists(fileID)) {
+      Logger.Log("Access", "Cannot access file that does not exist");
+      return FAIL;
+    }
+
+    File F = Table.GetFile(fileID);
+
+    if (F == NullFile) {
+      return FAIL;
+    }
+
+    if (F.byte_len < byte_offset) {
+      Logger.Log("Access", "Byte offset to be accessed exceeds actual file size");
+      return FAIL;
+    }
+
+    int index = Table.GetFile(fileID).index;
+
+    while(block_size < byte_offset) {
+      byte_offset -= block_size;
+      index = Directory[index].next;
+    }
+
+    return index;
+  }
+
+  int Extend(int fileID, int extension_amount) {
+
+    if (!Table.FileExists(fileID)) {
+      Logger.Log("Extend", "Cannot extend file that does not exist");
+      return FAIL;
+    }
+
+    if (available_space < extension_amount) {
+      Logger.Log("Extend", "Extension Rejected due to insufficient space");
+      return REJECT;
+    }
+
+    return SUCCESS;
+  }
+
+  int Shrink(int fileID, int shrink_amount) {
+
+    if (!Table.FileExists(fileID)) {
+      Logger.Log("Shrink", "Cannot shrink file that does not exist");
+      return FAIL;
+    }
+
+    return SUCCESS;
   }
 
 };
@@ -426,5 +678,12 @@ struct ContiguousFileAllocation {
 
 
 int main() {
+
+  LinkedAllocation LA(1024);
+
+
+  LA.CreateFile(3, 40000);
+
+  cout << LA.Access(3, 30000) << endl;
 
 }

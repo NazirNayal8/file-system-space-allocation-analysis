@@ -58,8 +58,6 @@ void _print(T t, V... v) {
 #define debug(x...)
 #endif
 
-
-
 #define MAX_BLOCKS 32768
 #define FAIL -1
 #define EMPTY 0
@@ -71,6 +69,10 @@ void _print(T t, V... v) {
 #define DIRECTORY_START 0
 #define NULL_ID -1
 
+/*
+  This struct type is used to log any issues or unexpected behaviour. Its
+  constructor reieves the name of the class the struct is being used in.
+*/
 struct IssueLogger {
 
   string class_name;
@@ -78,6 +80,11 @@ struct IssueLogger {
   IssueLogger() {}
   IssueLogger(string _class_name): class_name(_class_name) {}
 
+  /*
+    This function recieves the name of the function that an issue has appeared
+    in, and a string describing the error. Then it concatenates all necessary
+    information and prints it to standard error.
+  */
   void Log(string func_name, string error) {
 
     string Res = "Issue: " + class_name + ": " + func_name + ": " + error + "\n";
@@ -86,6 +93,12 @@ struct IssueLogger {
   }
 };
 
+/*
+  This struct type encapsulates file metadata.
+  index:      index at which the first block of the file is stored in Directory
+  block_len:  number of blocks occupied by the file
+  byte_len:   number of bytes occupied by the file
+*/
 struct File {
 
   int index;
@@ -105,32 +118,54 @@ struct File {
 
 };
 
+/*
+  NullFile represents an empty undefined file. It used as a return value
+  for cases where a function issues an error and the return type is a file.
+*/
 File NullFile = File(-1, -1, -1);
 
+/*
+  This function represents the data structure that holds info about files
+  in the directory. It consists of a mapping whose key is the file ID, and
+  whose value the file metadata represented by File struct defined above.
+*/
 struct DirectoryTable {
 
+  // this map has file ID as key and file metadata as value
   unordered_map<int, File> Table;
   IssueLogger Logger;
 
   DirectoryTable(): Logger(IssueLogger("DirectoryTable")) {}
 
+  /*
+    This function checkes if a file exists in the directory given
+    its ID.
+  */
   bool FileExists(int fileID) {
 
     return Table.count(fileID);
   }
 
+  /*
+    This function takes a file ID and returns the metadata of that file
+  */
   File GetFile(int fileID) {
 
+    // if a file does not exist, raise an issue
     if (!Table.count(fileID)) {
       Logger.Log("GetFile", "Requesting an entry that does not exist");
       return NullFile;
     }
 
     return Table[fileID];
-  }
+  } 
 
+  /*
+    This function adds a new file to the Directory table
+  */
   int AddFile(int fileID, File entry) {
 
+    // If a file of the given fileID already exists, raise an issue.
     if (Table.count(fileID)) {
       Logger.Log("AddFile", "Cannot add Entry that already exists");
       return FAIL;
@@ -141,8 +176,13 @@ struct DirectoryTable {
     return SUCCESS;
   }
 
+  /*
+    This function removes a file from the Directory Table.
+  */
   int RemoveFile(int fileID) {
 
+    // if file does not exist, raise an issue, because we expect
+    // a file we remove to exist
     if (!Table.count(fileID)) {
       Logger.Log("RemoveFile", "Cannot Remove Entry that does not exist");
       return FAIL;
@@ -153,8 +193,14 @@ struct DirectoryTable {
     return SUCCESS;
   }
 
+  /*
+    This function updates the index of a file stored in the directory.
+    Remember: the index is the index of the block at which this file
+    starts in the Directory.
+  */
   int UpdateIndex(int fileID, int new_index) {
 
+    // if file does not exist, raise an issue
     if (!Table.count(fileID)) {
       Logger.Log("UpdateIndex", "Given fileID does not exist");
       return FAIL;
@@ -165,8 +211,12 @@ struct DirectoryTable {
     return SUCCESS;
   }
 
+  /*
+    This function updates the length of bytes of a file in the directory
+  */
   int UpdateByteLen(int fileID, int new_len) {
 
+    // if file does not exist, raise an issue
     if (!Table.count(fileID)) {
       Logger.Log("UpdateByteLength", "Given fileID does not exist");
       return FAIL;
@@ -177,8 +227,12 @@ struct DirectoryTable {
     return SUCCESS;
   }
 
+  /*
+    This function updates the length of blocks of a file in the directory
+  */
   int UpdateBlockLen(int fileID, int new_len) {
 
+    // if file does not exist, raise an issue
     if (!Table.count(fileID)) {
       Logger.Log("UpdateBlockLen", "Given fileID does not exist");
       return FAIL;
@@ -191,7 +245,9 @@ struct DirectoryTable {
 
 };
 
-
+/*
+  
+*/
 struct ContiguousAllocation {
 
   int block_size;

@@ -301,7 +301,7 @@ struct ContiguousAllocation {
     for (int i = 0 ; i < F.block_len ; ++i) {
 
       if (Directory[new_index + i] != EMPTY) {
-        Logger.Log("Move", "Failed to Move because destination is occupied at");
+        Logger.Log("Move", "Failed to Move because destination is occupied at " + to_string(new_index + i));
         return FAIL;
       }
 
@@ -343,12 +343,21 @@ struct ContiguousAllocation {
     // last stores the index at which we expect to do
     // our next insertion
     int last = start_index;
+    int increment;
 
-    for (int i = start_index ; i < MAX_BLOCKS ; ++i) {
+    for (int i = start_index ; i < MAX_BLOCKS ; i += increment) {
+
+      increment = 1;
 
       if (Directory[i] == EMPTY) continue;
 
+      if(last == i) {
+        last++;
+        continue;  
+      }
+
       int ID = Directory[i];
+
 
       // use move function to move the directory
       int status = Move(Directory[i], last);
@@ -361,7 +370,8 @@ struct ContiguousAllocation {
       // by the length of the file, because that will
       // be the place at which the next file should be
       // inserted
-      last += Table.GetFile(ID).block_len;
+      increment = Table.GetFile(ID).block_len;; 
+      last += increment;
     }
 
     return SUCCESS;
@@ -689,6 +699,26 @@ struct ContiguousAllocation {
     }
   }
 
+  /*
+    Returns a slice of directory as a vector
+  */
+  vector<int> Slice(int l, int r) {
+
+    vector<int> Res;
+
+    for (int i = l ; i < r ; ++i)
+      Res.push_back(Directory[i]);
+
+    return Res;
+  }
+
+  /*
+    return map of Directory Table
+  */
+  unordered_map<int, File> ViewTable() {
+    return Table.Table;
+  }
+
 };
 
 /*
@@ -696,7 +726,7 @@ struct ContiguousAllocation {
   Its attributes:
 
   state: can be either empty or full
-  next:   stores the ID of the next 
+  next:   stores the ID of the next
   ID:     stored the ID of the linked file
 */
 struct LinkedFile {
@@ -714,7 +744,7 @@ struct LinkedFile {
   void Fill(int _ID) {
     state = _ID;
     ID = _ID;
-  } 
+  }
 
   /*
     This function changes the state of the File block to empty
@@ -726,7 +756,7 @@ struct LinkedFile {
   }
 
   /*
-    This function is used to update the next pointer 
+    This function is used to update the next pointer
   */
   void UpdateNext(int new_next) {
     next = new_next;
@@ -748,7 +778,7 @@ struct LinkedFile {
   block_size:       the size of the block
   available_space:  stores the number of blocks remaning empty
   Table:            stores Directory Table
-  Directory:        stores list of Directory where each block is 
+  Directory:        stores list of Directory where each block is
                     a LinkedFile instance
 */
 struct LinkedAllocation {
@@ -786,7 +816,7 @@ struct LinkedAllocation {
     vector<int> Res;
 
     for (int i = 0 ; i < MAX_BLOCKS ; ++i) {
-      
+
       if (Directory[i].state == EMPTY) {
         Res.push_back(i);
       }
@@ -1056,6 +1086,26 @@ struct LinkedAllocation {
       File F = el.second;
       cout << el.first << " : " << F.index << " " << F.block_len << " " << F.byte_len << endl;
     }
+  }
+
+  /*
+    Returns a slice of directory as a vector
+  */
+  vector<int> Slice(int l, int r) {
+
+    vector<int> Res;
+
+    for (int i = l ; i < r ; ++i)
+      Res.push_back(Directory[i].state);
+
+    return Res;
+  }
+
+  /*
+    return map of Directory Table
+  */
+  unordered_map<int, File> ViewTable() {
+    return Table.Table;
   }
 
 };

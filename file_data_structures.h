@@ -69,6 +69,19 @@ void _print(T t, V... v) {
 #define DIRECTORY_START 0
 #define NULL_ID -1
 
+struct Allocation {
+
+  Allocation() {}
+
+  virtual int CreateFile(int fileID, int length) = 0;
+  
+  virtual int Access(int fileID, int byte_offset) = 0;
+
+  virtual int Extend(int fileID, int extension_amount) = 0;
+
+  virtual int Shrink(int fileID, int shrink_amount) = 0;
+};
+
 /*
   This struct type is used to log any issues or unexpected behaviour. Its
   constructor reieves the name of the class the struct is being used in.
@@ -256,7 +269,7 @@ struct DirectoryTable {
   Table:            represents the Directory Table data structure
   Logger:           used to log issues to standard error
 */
-struct ContiguousAllocation {
+struct ContiguousAllocation : Allocation {
 
   int block_size;
   int available_space;
@@ -351,9 +364,9 @@ struct ContiguousAllocation {
 
       if (Directory[i] == EMPTY) continue;
 
-      if(last == i) {
+      if (last == i) {
         last++;
-        continue;  
+        continue;
       }
 
       int ID = Directory[i];
@@ -370,7 +383,7 @@ struct ContiguousAllocation {
       // by the length of the file, because that will
       // be the place at which the next file should be
       // inserted
-      increment = Table.GetFile(ID).block_len;; 
+      increment = Table.GetFile(ID).block_len;;
       last += increment;
     }
 
@@ -781,7 +794,7 @@ struct LinkedFile {
   Directory:        stores list of Directory where each block is
                     a LinkedFile instance
 */
-struct LinkedAllocation {
+struct LinkedAllocation : Allocation {
 
   int block_size;
   int available_space;

@@ -68,6 +68,7 @@ void _print(T t, V... v) {
 #define END_OF_FILE -1
 #define DIRECTORY_START 0
 #define NULL_ID -1
+#define POINTER_SIZE 4
 
 struct Allocation {
 
@@ -102,7 +103,7 @@ struct IssueLogger {
 
     string Res = "Issue: " + class_name + ": " + func_name + ": " + error + "\n";
 
-    cerr << Res ;
+    cout << Res ;
   }
 };
 
@@ -746,17 +747,15 @@ struct LinkedFile {
 
   int state;
   int next;
-  int ID;
 
-  LinkedFile(): ID(-1), next(END_OF_FILE), state(EMPTY) {}
-  LinkedFile(int _ID): ID(_ID), next(END_OF_FILE), state(EMPTY) {}
+  LinkedFile(): next(END_OF_FILE), state(EMPTY) {}
+  LinkedFile(int _state): next(END_OF_FILE), state(_state) {}
 
   /*
     This function changes the state of the File block to occupied
   */
-  void Fill(int _ID) {
-    state = _ID;
-    ID = _ID;
+  void Fill(int ID) {
+    state = ID;
   }
 
   /*
@@ -764,7 +763,6 @@ struct LinkedFile {
   */
   void Empty() {
     state = EMPTY;
-    ID = NULL_ID;
     next = END_OF_FILE;
   }
 
@@ -804,7 +802,7 @@ struct LinkedAllocation : Allocation {
 
   LinkedAllocation(int _block_size) {
     Table = DirectoryTable();
-    block_size = _block_size;
+    block_size = _block_size - POINTER_SIZE;
     Logger = IssueLogger("LinkedAllocation");
     available_space = MAX_BLOCKS;
   }
@@ -1086,7 +1084,7 @@ struct LinkedAllocation : Allocation {
   void PrintSlice(int l, int r) {
 
     for (int i = l ; i < r ; ++i) {
-      cout << Directory[i].ID << endl;
+      cout << Directory[i].state << endl;
     }
   }
 

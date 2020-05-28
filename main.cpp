@@ -7,8 +7,8 @@
 #define TimePoint chrono::_V2::system_clock::time_point
 #define TimeNow chrono::system_clock::now
 #define duration chrono::duration
-#define INPUT_N 1
-#define REP 1
+#define INPUT_N 5
+#define REP 5
 
 struct Call {
 
@@ -330,7 +330,7 @@ int main() {
   Results LinkedRes[INPUT_N];
 
   for (int i = 0 ; i < INPUT_N ; ++i) {
-
+    
     string file_path = InputFiles[i];
     int block_size = BlockSizes[i];
 
@@ -350,7 +350,7 @@ int main() {
 
 
   for (int i = 0 ; i < INPUT_N ; ++i) {
-    continue;
+    
     string file_path = InputFiles[i];
     int block_size = BlockSizes[i];
 

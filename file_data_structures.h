@@ -103,7 +103,7 @@ struct GeneralLogger {
 
     string Res = "Issue: " + class_name + ": " + func_name + ": " + error + "\n";
 
-    cout << Res ;
+    cerr << Res ;
   }
 
   void LogInfo(string func_name, string msg) {
@@ -933,7 +933,7 @@ struct LinkedAllocation : Allocation {
 
     // if no available space, the operation is rejected
     if (block_num > available_space) {
-      Logger.LogIssue("CreateFile", "Creation Rejected due to insufficient space");
+      Logger.LogInfo("CreateFile", "Creation Rejected due to insufficient space");
       return REJECT;
     }
 
@@ -1032,7 +1032,7 @@ struct LinkedAllocation : Allocation {
 
     // if no available space of extension, reject
     if (available_space < extension_amount) {
-      Logger.LogIssue("Extend", "Extension Rejected due to insufficient space");
+      Logger.LogInfo("Extend", "Extension Rejected due to insufficient space");
       return REJECT;
     }
 

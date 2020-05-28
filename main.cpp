@@ -8,7 +8,7 @@
 #define TimeNow chrono::system_clock::now
 #define duration chrono::duration
 #define INPUT_N 1
-#define REP 5
+#define REP 1
 
 struct Call {
 
@@ -50,6 +50,7 @@ struct Results {
   double create_time = 0.0;
   double extend_time = 0.0;
   double shrink_time = 0.0;
+  double access_failure = 0.0;
 
   Results(): create_rejects(0.0), extend_rejects(0.0) {}
   Results(int cr, int er, int rt): create_rejects(cr), extend_rejects(er), run_time(rt) {}
@@ -64,6 +65,7 @@ struct Results {
     R.create_time = create_time + Res.create_time;
     R.extend_time = extend_time + Res.extend_time;
     R.shrink_time = shrink_time + Res.shrink_time;
+    R.access_failure = access_failure + Res.access_failure;
 
     return R;
   }
@@ -77,6 +79,7 @@ struct Results {
     create_time /= num;
     extend_time /= num;
     shrink_time /= num;
+    access_failure /= num;
   }
 
   void Add(Results Res) {
@@ -88,6 +91,7 @@ struct Results {
     create_time += Res.create_time;
     extend_time += Res.extend_time;
     shrink_time += Res.shrink_time;
+    access_failure += Res.access_failure;
   }
 
   void Print(string title) {
@@ -101,7 +105,7 @@ struct Results {
     cout << "Avg Access Time: " << access_time << endl;
     cout << "Avg Extension Time: " << extend_time << endl;
     cout << "Avg Shrink Time: " << shrink_time << endl;
-
+    cout << "Avg Access failure: " << access_failure << endl;
     puts("");
   }
 };
@@ -118,7 +122,7 @@ int BlockSizes[] = {8, 1024, 1024, 1024, 2048};
 
 int ID = 1;
 
-IssueLogger Logger = IssueLogger("Experiment");
+GeneralLogger Logger = GeneralLogger("Experiment");
 
 int GetID() {
   return ID++;
@@ -213,7 +217,7 @@ Results RunExperiment(Allocation& A, string file_name) {
       if (status == REJECT) Res.create_rejects++;
 
       if (status == FAIL) {
-        Logger.Log("CreateCall", "Creation Failed: " + Args[1]);
+        Logger.LogIssue("CreateCall", "Creation Failed: " + Args[1]);
       }
 
       Res.create_time += GetDuration(l_time, r_time);
@@ -236,11 +240,11 @@ Results RunExperiment(Allocation& A, string file_name) {
       TimePoint r_time = TimeNow();
 
       if (index == FAIL) {
-        Logger.Log("AccessCall", "Access Failed: " + Args[1] + " " + Args[2]);
+        Logger.LogIssue("AccessCall", "Access Failed: " + Args[1] + " " + Args[2]);
+        Res.access_failure++;
       }
 
       Res.access_time += GetDuration(l_time, r_time);
-
       access_count++;
 
       continue;
@@ -263,7 +267,7 @@ Results RunExperiment(Allocation& A, string file_name) {
       }
 
       if (status == FAIL) {
-        Logger.Log("Extend", "Extension Failed: " + Args[1] + " " + Args[2]);
+        Logger.LogIssue("Extend", "Extension Failed: " + Args[1] + " " + Args[2]);
       }
 
       Res.extend_time += GetDuration(l_time, r_time);
@@ -286,7 +290,7 @@ Results RunExperiment(Allocation& A, string file_name) {
       TimePoint r_time = TimeNow();
 
       if (status == FAIL) {
-        Logger.Log("Shrink", "Shrink failed: " + Args[1] + " " + Args[2]);
+        Logger.LogIssue("Shrink", "Shrink failed: " + Args[1] + " " + Args[2]);
       }
 
       Res.shrink_time += GetDuration(l_time, r_time);

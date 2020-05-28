@@ -75,7 +75,7 @@ struct Allocation {
   Allocation() {}
 
   virtual int CreateFile(int fileID, int length) = 0;
-  
+
   virtual int Access(int fileID, int byte_offset) = 0;
 
   virtual int Extend(int fileID, int extension_amount) = 0;
@@ -84,26 +84,33 @@ struct Allocation {
 };
 
 /*
-  This struct type is used to log any issues or unexpected behaviour. Its
+  This struct type is used to LogIssue any issues or unexpected behaviour. Its
   constructor reieves the name of the class the struct is being used in.
 */
-struct IssueLogger {
+struct GeneralLogger {
 
   string class_name;
 
-  IssueLogger() {}
-  IssueLogger(string _class_name): class_name(_class_name) {}
+  GeneralLogger() {}
+  GeneralLogger(string _class_name): class_name(_class_name) {}
 
   /*
     This function recieves the name of the function that an issue has appeared
     in, and a string describing the error. Then it concatenates all necessary
     information and prints it to standard error.
   */
-  void Log(string func_name, string error) {
+  void LogIssue(string func_name, string error) {
 
     string Res = "Issue: " + class_name + ": " + func_name + ": " + error + "\n";
 
     cout << Res ;
+  }
+
+  void LogInfo(string func_name, string msg) {
+
+    string Res = "Info: " + class_name + ": " + func_name + ": " + msg + "\n";
+
+    cerr << Res;
   }
 };
 
@@ -147,9 +154,9 @@ struct DirectoryTable {
 
   // this map has file ID as key and file metadata as value
   unordered_map<int, File> Table;
-  IssueLogger Logger;
+  GeneralLogger Logger;
 
-  DirectoryTable(): Logger(IssueLogger("DirectoryTable")) {}
+  DirectoryTable(): Logger(GeneralLogger("DirectoryTable")) {}
 
   /*
     This function checkes if a file exists in the directory given
@@ -167,7 +174,7 @@ struct DirectoryTable {
 
     // if a file does not exist, raise an issue
     if (!Table.count(fileID)) {
-      Logger.Log("GetFile", "Requesting an entry that does not exist");
+      Logger.LogIssue("GetFile", "Requesting an entry that does not exist");
       return NullFile;
     }
 
@@ -181,7 +188,7 @@ struct DirectoryTable {
 
     // If a file of the given fileID already exists, raise an issue.
     if (Table.count(fileID)) {
-      Logger.Log("AddFile", "Cannot add Entry that already exists");
+      Logger.LogIssue("AddFile", "Cannot add Entry that already exists");
       return FAIL;
     }
 
@@ -198,7 +205,7 @@ struct DirectoryTable {
     // if file does not exist, raise an issue, because we expect
     // a file we remove to exist
     if (!Table.count(fileID)) {
-      Logger.Log("RemoveFile", "Cannot Remove Entry that does not exist");
+      Logger.LogIssue("RemoveFile", "Cannot Remove Entry that does not exist");
       return FAIL;
     }
 
@@ -216,7 +223,7 @@ struct DirectoryTable {
 
     // if file does not exist, raise an issue
     if (!Table.count(fileID)) {
-      Logger.Log("UpdateIndex", "Given fileID does not exist");
+      Logger.LogIssue("UpdateIndex", "Given fileID does not exist");
       return FAIL;
     }
 
@@ -232,7 +239,7 @@ struct DirectoryTable {
 
     // if file does not exist, raise an issue
     if (!Table.count(fileID)) {
-      Logger.Log("UpdateByteLength", "Given fileID does not exist");
+      Logger.LogIssue("UpdateByteLength", "Given fileID does not exist");
       return FAIL;
     }
 
@@ -248,7 +255,7 @@ struct DirectoryTable {
 
     // if file does not exist, raise an issue
     if (!Table.count(fileID)) {
-      Logger.Log("UpdateBlockLen", "Given fileID does not exist");
+      Logger.LogIssue("UpdateBlockLen", "Given fileID does not exist");
       return FAIL;
     }
 
@@ -268,7 +275,7 @@ struct DirectoryTable {
                     makes it easier and faster for several operations
   Directory:        represents the blocks of the directory
   Table:            represents the Directory Table data structure
-  Logger:           used to log issues to standard error
+  Logger:           used to LogIssue issues to standard error
 */
 struct ContiguousAllocation : Allocation {
 
@@ -276,14 +283,14 @@ struct ContiguousAllocation : Allocation {
   int available_space;
   int Directory[MAX_BLOCKS];
   DirectoryTable Table;
-  IssueLogger Logger;
+  GeneralLogger Logger;
 
   ContiguousAllocation(int _block_size) {
 
     block_size = _block_size;
     available_space = MAX_BLOCKS;
     Table = DirectoryTable();
-    Logger = IssueLogger("ContiguousAllocation");
+    Logger = GeneralLogger("ContiguousAllocation");
     memset(Directory, EMPTY, sizeof(Directory));
   }
 
@@ -307,6 +314,7 @@ struct ContiguousAllocation : Allocation {
     File F = Table.GetFile(fileID);
 
     if (F == NullFile) {
+      Logger.LogIssue("Move", "Cannot Get file");
       return FAIL;
     }
 
@@ -315,7 +323,8 @@ struct ContiguousAllocation : Allocation {
     for (int i = 0 ; i < F.block_len ; ++i) {
 
       if (Directory[new_index + i] != EMPTY) {
-        Logger.Log("Move", "Failed to Move because destination is occupied at " + to_string(new_index + i));
+        string info = ", moving from " + to_string(old_index) + " to " + to_string(new_index) + ", length: " + to_string(F.block_len);
+        Logger.LogIssue("Move", "Failed to Move because destination is occupied at " + to_string(new_index + i) + info);
         return FAIL;
       }
 
@@ -329,7 +338,42 @@ struct ContiguousAllocation : Allocation {
     // update index in Directory Table
     int status = Table.UpdateIndex(fileID, new_index);
 
-    if (status == FAIL) return status;
+    if (status == FAIL) {
+      Logger.LogIssue("Move", "Cannot Update Index");
+      return status;
+    }
+
+    return SUCCESS;
+  }
+
+  /*
+    This function shifts the contents of a file from left to right by a certain
+    amount. It assumes that there is enough space on the right for shifting
+  */
+
+  int Shift(int fileID, int amount) {
+
+    File F = Table.GetFile(fileID);
+
+    if(F == NullFile) {
+      Logger.LogIssue("Shift", "Issue in Getting file from table");
+      return FAIL;
+    }
+
+    int index = F.index + F.block_len - 1;
+
+    for(int i = index ; F.index <= i ; --i) {
+
+      if(Directory[i + amount] != EMPTY) {
+        Logger.LogIssue("Shift", "It is assumed that destination is empty, but it's not");
+        return FAIL;
+      }
+
+      Directory[i] = EMPTY;
+      Directory[i + amount] = fileID;
+    }
+
+    Table.UpdateIndex(fileID, F.index + amount);
 
     return SUCCESS;
   }
@@ -354,6 +398,8 @@ struct ContiguousAllocation : Allocation {
   */
   int ApplyCompaction(int start_index) {
 
+    Logger.LogInfo("ApplyCompation", "Applying Compaction starting from " + to_string(start_index));
+
     // last stores the index at which we expect to do
     // our next insertion
     int last = start_index;
@@ -377,6 +423,7 @@ struct ContiguousAllocation : Allocation {
       int status = Move(Directory[i], last);
 
       if (status == FAIL) {
+        Logger.LogIssue("ApplyCompaction:", "Failed to compact due to Move issue");
         return status;
       }
 
@@ -446,7 +493,7 @@ struct ContiguousAllocation : Allocation {
       if (Directory[i] != EMPTY) {
 
         string t = "(" + to_string(fileID) + "," + to_string(index) + to_string(length) + ")";
-        Logger.Log("Fill", "Cannot fill in already full slot:" + t);
+        Logger.LogIssue("Fill", "Cannot fill in already full slot:" + t);
         return FAIL;
       }
 
@@ -466,7 +513,7 @@ struct ContiguousAllocation : Allocation {
     for (int i = index ; i < index + length ; ++i) {
 
       if (Directory[i] == EMPTY) {
-        Logger.Log("Empty", "Attempting to empty an already Empty spot, this should not happen");
+        Logger.LogIssue("Empty", "Attempting to empty an already Empty spot, this should not happen");
         return FAIL;
       }
 
@@ -483,7 +530,7 @@ struct ContiguousAllocation : Allocation {
 
     // if a file with such fileID exists, abort creation
     if (Table.FileExists(fileID)) {
-      Logger.Log("create_file", "Cannot create a file that already exists");
+      Logger.LogIssue("create_file", "Cannot create a file that already exists");
       return FAIL;
     }
 
@@ -491,7 +538,7 @@ struct ContiguousAllocation : Allocation {
 
     // if there is no enough space, reject creation
     if (block_num > available_space) {
-      Logger.Log("CreateFile", "Creation Rejected due to insufficient space");
+      Logger.LogInfo("CreateFile", "Creation Rejected due to insufficient space");
       return REJECT;
     }
 
@@ -503,7 +550,14 @@ struct ContiguousAllocation : Allocation {
     // we check at the beginning of total available space is enough
     if (index == FAIL) {
 
-      ApplyCompaction(DIRECTORY_START);
+      Logger.LogInfo("CreateFile", "No Contiguous space was found, so next is compaction");
+
+      int status = ApplyCompaction(DIRECTORY_START);
+
+      if (status == FAIL) {
+        Logger.LogIssue("CreateFile", "Failed to create file due to compaction issue");
+        return status;
+      }
 
       // this represents the first empty index after compaction
       // it will for sure be the place at which we can insert the file
@@ -521,6 +575,7 @@ struct ContiguousAllocation : Allocation {
     status = Fill(fileID, index, block_num);
 
     if (status == FAIL) {
+      Logger.LogIssue("CreateFile", "Creation Failed due to Fill Issue");
       return FAIL;
     }
 
@@ -539,7 +594,7 @@ struct ContiguousAllocation : Allocation {
 
     // if not such file exist, the operation fails
     if (!Table.FileExists(fileID)) {
-      Logger.Log("Access", "Cannot access file that does not exist");
+      Logger.LogIssue("Access", "Cannot access file that does not exist");
       return FAIL;
     }
 
@@ -551,7 +606,7 @@ struct ContiguousAllocation : Allocation {
 
     // if byte offset exceeds the file size, abort access operation
     if (F.byte_len < byte_offset) {
-      Logger.Log("Access", "Byte offset to be accessed exceeds actual file size");
+      Logger.LogIssue("Access", "Byte offset to be accessed exceeds actual file size");
       return FAIL;
     }
 
@@ -573,19 +628,22 @@ struct ContiguousAllocation : Allocation {
 
     // if such file does not exist, the operation fails
     if (!Table.FileExists(fileID)) {
-      Logger.Log("Extend", "Cannot extend file that does not exist");
+      Logger.LogIssue("Extend", "Cannot extend file that does not exist");
       return FAIL;
     }
 
     // if no enough space for extension, operation is rejected
     if (available_space < extension_amount) {
-      Logger.Log("Extend", "Extension Rejected due to insufficient space");
+      Logger.LogInfo("Extend", "Extension Rejected due to insufficient space");
       return REJECT;
     }
 
     File F = Table.GetFile(fileID);
 
-    if (F == NullFile) return FAIL;
+    if (F == NullFile) {
+      Logger.LogIssue("Extend", "Cannot Get File");
+      return FAIL;
+    }
 
     // if current space is enough to extend, extend it already
     // if not, then apply compaction and extend
@@ -594,29 +652,48 @@ struct ContiguousAllocation : Allocation {
       int status = Fill(fileID, F.index + F.block_len, extension_amount);
 
       if (status == FAIL) {
+        Logger.LogIssue("Extend", "Extension Failed due to Fill Issue while we can extend");
         return status;
       }
 
     } else {
 
-      ApplyCompaction(DIRECTORY_START);
-
-      int old_index = Table.GetFile(fileID).index;
-      int new_index = MAX_BLOCKS - available_space;
-
-      Move(fileID, new_index);
-
-      int status = Fill(fileID, new_index + F.block_len, extension_amount);
+      int status = ApplyCompaction(DIRECTORY_START);
 
       if (status == FAIL) {
+        Logger.LogIssue("Extend", "Extension failed due to failure in compaction cannot extend");
+        return FAIL;
+      }
+
+      File Fi = Table.GetFile(fileID);
+
+      int stop_index = Fi.index + Fi.block_len - 1;
+      int index = MAX_BLOCKS - available_space - 1;
+      int decrement = 1;
+
+      for (int i = index ; stop_index < i ; i -= decrement) {
+
+        assert(Directory[i] != EMPTY);
+
+        int ID = Directory[i];
+
+        status = Shift(ID, extension_amount);
+
+        if(status == FAIL) {
+          Logger.LogIssue("Extend", "Cannot extend because cannot move after compacting");
+          return FAIL;
+        }
+
+        decrement = Table.GetFile(ID).block_len;
+      }
+
+      status = Fill(fileID, F.index + F.block_len, extension_amount);
+
+      if (status == FAIL) {
+        Logger.LogIssue("Extend", "Extension failed due to fill Issue while we cannot extend");
         return status;
       }
 
-      // currently I don't know why, but after compaction and extension,
-      // I am applying compaction again, this does not seems to be necessary
-      // but I shall deal with it after starting experimentation to see
-      // its effects
-      ApplyCompaction(old_index);
     }
 
     // update Directory table with new block and byte lengths
@@ -638,25 +715,26 @@ struct ContiguousAllocation : Allocation {
 
     // if such file does not exists, the operation fails
     if (!Table.FileExists(fileID)) {
-      Logger.Log("Shrink", "Cannot shrink file that does not exist");
+      Logger.LogIssue("Shrink", "Cannot shrink file that does not exist");
       return FAIL;
     }
 
     // shirnk amount cannot be zero
     if (shrink_amount == 0) {
-      Logger.Log("Shrink", "Shrink amount cannot be equal to zero");
+      Logger.LogIssue("Shrink", "Shrink amount cannot be equal to zero");
       return FAIL;
     }
 
     File F = Table.GetFile(fileID);
 
     if (F == NullFile) {
+      Logger.LogIssue("Shrink", "Cannot Get File");
       return FAIL;
     }
 
     // shrink amount cannot be greater than block length of file
     if (F.block_len < shrink_amount) {
-      Logger.Log("Shrink", "Shrink aborted because shrink amount is greater than file size");
+      Logger.LogIssue("Shrink", "Shrink aborted because shrink amount is greater than file size");
       return FAIL;
     }
 
@@ -666,6 +744,7 @@ struct ContiguousAllocation : Allocation {
     int status = Empty(F.index + blocks_left, shrink_amount);
 
     if (status == FAIL) {
+      Logger.LogIssue("Shrink", "Shrink failed to issue in Empty");
       return status;
     }
 
@@ -677,6 +756,7 @@ struct ContiguousAllocation : Allocation {
       status = Table.RemoveFile(fileID);
 
       if (status == FAIL) {
+        Logger.LogIssue("Shrink", "Shrink failed due to issue in Remove File");
         return FAIL;
       }
 
@@ -798,12 +878,12 @@ struct LinkedAllocation : Allocation {
   int available_space;
   DirectoryTable Table;
   LinkedFile Directory[MAX_BLOCKS];
-  IssueLogger Logger;
+  GeneralLogger Logger;
 
   LinkedAllocation(int _block_size) {
     Table = DirectoryTable();
     block_size = _block_size - POINTER_SIZE;
-    Logger = IssueLogger("LinkedAllocation");
+    Logger = GeneralLogger("LinkedAllocation");
     available_space = MAX_BLOCKS;
   }
 
@@ -845,7 +925,7 @@ struct LinkedAllocation : Allocation {
 
     // if such file exists, the operation fails
     if (Table.FileExists(fileID)) {
-      Logger.Log("create_file", "Cannot create a file that already exists");
+      Logger.LogIssue("create_file", "Cannot create a file that already exists");
       return FAIL;
     }
 
@@ -853,7 +933,7 @@ struct LinkedAllocation : Allocation {
 
     // if no available space, the operation is rejected
     if (block_num > available_space) {
-      Logger.Log("CreateFile", "Creation Rejected due to insufficient space");
+      Logger.LogIssue("CreateFile", "Creation Rejected due to insufficient space");
       return REJECT;
     }
 
@@ -861,7 +941,7 @@ struct LinkedAllocation : Allocation {
 
     // ensure that we got same number of spaces as required
     if (space.size() != block_num) {
-      Logger.Log("CreateFile", "Number of Slots found does not match requested number.");
+      Logger.LogIssue("CreateFile", "Number of Slots found does not match requested number.");
       return FAIL;
     }
 
@@ -872,7 +952,7 @@ struct LinkedAllocation : Allocation {
 
       // ensure that selected spaces are empty
       if (Directory[x].state != EMPTY) {
-        Logger.Log("CreateFile", "Expected an empty space in directory, but it is not empty");
+        Logger.LogIssue("CreateFile", "Expected an empty space in directory, but it is not empty");
         return FAIL;
       }
 
@@ -909,7 +989,7 @@ struct LinkedAllocation : Allocation {
 
     // if such file does not exist, operation fails
     if (!Table.FileExists(fileID)) {
-      Logger.Log("Access", "Cannot access file that does not exist");
+      Logger.LogIssue("Access", "Cannot access file that does not exist");
       return FAIL;
     }
 
@@ -921,7 +1001,7 @@ struct LinkedAllocation : Allocation {
 
     // if byte offset is larger the file byte length, operation fails
     if (F.byte_len < byte_offset) {
-      Logger.Log("Access", "Byte offset to be accessed exceeds actual file size");
+      Logger.LogIssue("Access", "Byte offset to be accessed exceeds actual file size");
       return FAIL;
     }
 
@@ -946,13 +1026,13 @@ struct LinkedAllocation : Allocation {
 
     // if such file does not exist, operation fails
     if (!Table.FileExists(fileID)) {
-      Logger.Log("Extend", "Cannot extend file that does not exist");
+      Logger.LogIssue("Extend", "Cannot extend file that does not exist");
       return FAIL;
     }
 
     // if no available space of extension, reject
     if (available_space < extension_amount) {
-      Logger.Log("Extend", "Extension Rejected due to insufficient space");
+      Logger.LogIssue("Extend", "Extension Rejected due to insufficient space");
       return REJECT;
     }
 
@@ -967,7 +1047,7 @@ struct LinkedAllocation : Allocation {
 
     // ensure that space slots found match required
     if (space.size() != extension_amount) {
-      Logger.Log("Extend", "Number of Slots found does not match requested number.");
+      Logger.LogIssue("Extend", "Number of Slots found does not match requested number.");
       return FAIL;
     }
 
@@ -988,7 +1068,7 @@ struct LinkedAllocation : Allocation {
 
       // ensure chosen slot is empty
       if (Directory[x].state != EMPTY) {
-        Logger.Log("CreateFile", "Expected an empty space in directory, but it is not empty");
+        Logger.LogIssue("CreateFile", "Expected an empty space in directory, but it is not empty");
         return FAIL;
       }
 
@@ -1020,7 +1100,7 @@ struct LinkedAllocation : Allocation {
 
     // if such file does not exist, operation fails
     if (!Table.FileExists(fileID)) {
-      Logger.Log("Shrink", "Cannot shrink file that does not exist");
+      Logger.LogIssue("Shrink", "Cannot shrink file that does not exist");
       return FAIL;
     }
 
@@ -1032,7 +1112,7 @@ struct LinkedAllocation : Allocation {
 
     // shrink amoutn cannot exceed current length
     if (F.block_len < shrink_amount) {
-      Logger.Log("Shrink", "Shrink aborted because shrink amount is greater than file size");
+      Logger.LogIssue("Shrink", "Shrink aborted because shrink amount is greater than file size");
       return FAIL;
     }
 

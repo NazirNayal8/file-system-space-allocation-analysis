@@ -100,11 +100,11 @@ struct Results {
 
     cout << "Avg Creation Rejections: " << create_rejects << endl;
     cout << "Avg Extension Rejections: " << extend_rejects << endl;
-    cout << "Avg Total Runtime of input: " << run_time << endl;
-    cout << "Avg Creation Time: " << create_time << endl;
-    cout << "Avg Access Time: " << access_time << endl;
-    cout << "Avg Extension Time: " << extend_time << endl;
-    cout << "Avg Shrink Time: " << shrink_time << endl;
+    cout << "Avg Total Runtime of input: " << run_time << " (ms)" << endl;
+    cout << "Avg Creation Time: " << create_time << " (ms)" << endl;
+    cout << "Avg Access Time: " << access_time << " (ms)" << endl;
+    cout << "Avg Extension Time: " << extend_time << " (ms)" << endl;
+    cout << "Avg Shrink Time: " << shrink_time << " (ms)" << endl;
     cout << "Avg Access failure: " << access_failure << endl;
     puts("");
   }

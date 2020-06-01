@@ -51,7 +51,7 @@ void _print(T t, V... v) {
     cerr << ", "; _print(v...);
 }
 
-//#define ONLINE_MODE
+#define ONLINE_MODE
 #ifndef ONLINE_MODE
 #define debug(x...) cerr << "[" << #x << "] = ["; _print(x)
 #else

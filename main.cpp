@@ -194,7 +194,7 @@ Results RunExperiment(Allocation& A, string file_name) {
   string line;
 
   Results Res;
-  
+
   TimePoint l_total = TimeNow();
 
   while (inFile >> line) {
@@ -240,7 +240,7 @@ Results RunExperiment(Allocation& A, string file_name) {
       TimePoint r_time = TimeNow();
 
       if (index == FAIL) {
-        Logger.LogIssue("AccessCall", "Access Failed: " + Args[1] + " " + Args[2]);
+        Logger.LogInfo("AccessCall", "Access Failed: " + Args[1] + " " + Args[2]);
         Res.access_failure++;
       }
 
@@ -330,7 +330,7 @@ int main() {
   Results LinkedRes[INPUT_N];
 
   for (int i = 0 ; i < INPUT_N ; ++i) {
-    
+
     string file_path = InputFiles[i];
     int block_size = BlockSizes[i];
 
@@ -350,7 +350,7 @@ int main() {
 
 
   for (int i = 0 ; i < INPUT_N ; ++i) {
-    
+
     string file_path = InputFiles[i];
     int block_size = BlockSizes[i];
 

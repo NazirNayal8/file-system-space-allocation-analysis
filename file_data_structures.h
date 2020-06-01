@@ -103,7 +103,7 @@ struct GeneralLogger {
 
     string Res = "Issue: " + class_name + ": " + func_name + ": " + error + "\n";
 
-    cerr << Res ;
+    cout << Res ;
   }
 
   void LogInfo(string func_name, string msg) {
@@ -287,7 +287,7 @@ struct ContiguousAllocation : Allocation {
 
   ContiguousAllocation(int _block_size) {
 
-    block_size = _block_size;
+    block_size = _block_size ;
     available_space = MAX_BLOCKS;
     Table = DirectoryTable();
     Logger = GeneralLogger("ContiguousAllocation");
@@ -355,16 +355,16 @@ struct ContiguousAllocation : Allocation {
 
     File F = Table.GetFile(fileID);
 
-    if(F == NullFile) {
+    if (F == NullFile) {
       Logger.LogIssue("Shift", "Issue in Getting file from table");
       return FAIL;
     }
 
     int index = F.index + F.block_len - 1;
 
-    for(int i = index ; F.index <= i ; --i) {
+    for (int i = index ; F.index <= i ; --i) {
 
-      if(Directory[i + amount] != EMPTY) {
+      if (Directory[i + amount] != EMPTY) {
         Logger.LogIssue("Shift", "It is assumed that destination is empty, but it's not");
         return FAIL;
       }
@@ -492,8 +492,8 @@ struct ContiguousAllocation : Allocation {
 
       if (Directory[i] != EMPTY) {
 
-        string t = "(" + to_string(fileID) + "," + to_string(index) + to_string(length) + ")";
-        Logger.LogIssue("Fill", "Cannot fill in already full slot:" + t);
+        string info = " at " + to_string(i) +  ", filling from " + to_string(index) + " to " + to_string(index + length - 1);
+        Logger.LogIssue("Fill", "Cannot fill in already full slot" + info);
         return FAIL;
       }
 
@@ -594,7 +594,7 @@ struct ContiguousAllocation : Allocation {
 
     // if not such file exist, the operation fails
     if (!Table.FileExists(fileID)) {
-      Logger.LogIssue("Access", "Cannot access file that does not exist");
+      Logger.LogInfo("Access", "Cannot access file that does not exist");
       return FAIL;
     }
 
@@ -606,7 +606,7 @@ struct ContiguousAllocation : Allocation {
 
     // if byte offset exceeds the file size, abort access operation
     if (F.byte_len < byte_offset) {
-      Logger.LogIssue("Access", "Byte offset to be accessed exceeds actual file size");
+      Logger.LogInfo("Access", "Byte offset to be accessed exceeds actual file size");
       return FAIL;
     }
 
@@ -673,13 +673,15 @@ struct ContiguousAllocation : Allocation {
 
       for (int i = index ; stop_index < i ; i -= decrement) {
 
+        decrement = 1;
+
         assert(Directory[i] != EMPTY);
 
         int ID = Directory[i];
 
         status = Shift(ID, extension_amount);
 
-        if(status == FAIL) {
+        if (status == FAIL) {
           Logger.LogIssue("Extend", "Cannot extend because cannot move after compacting");
           return FAIL;
         }
@@ -687,7 +689,7 @@ struct ContiguousAllocation : Allocation {
         decrement = Table.GetFile(ID).block_len;
       }
 
-      status = Fill(fileID, F.index + F.block_len, extension_amount);
+      status = Fill(fileID, Fi.index + Fi.block_len, extension_amount);
 
       if (status == FAIL) {
         Logger.LogIssue("Extend", "Extension failed due to fill Issue while we cannot extend");
@@ -733,7 +735,7 @@ struct ContiguousAllocation : Allocation {
     }
 
     // shrink amount cannot be greater than block length of file
-    if (F.block_len < shrink_amount) {
+    if (F.block_len <= shrink_amount) {
       Logger.LogIssue("Shrink", "Shrink aborted because shrink amount is greater than file size");
       return FAIL;
     }
@@ -778,7 +780,7 @@ struct ContiguousAllocation : Allocation {
   void PrintSlice(int l, int r) {
 
     for (int i = l ; i < r ; ++i) {
-      cout << Directory[i] << endl;
+      cout << i << " : " << Directory[i] << endl;
     }
   }
 
@@ -989,7 +991,7 @@ struct LinkedAllocation : Allocation {
 
     // if such file does not exist, operation fails
     if (!Table.FileExists(fileID)) {
-      Logger.LogIssue("Access", "Cannot access file that does not exist");
+      Logger.LogInfo("Access", "Cannot access file that does not exist");
       return FAIL;
     }
 
@@ -1001,7 +1003,7 @@ struct LinkedAllocation : Allocation {
 
     // if byte offset is larger the file byte length, operation fails
     if (F.byte_len < byte_offset) {
-      Logger.LogIssue("Access", "Byte offset to be accessed exceeds actual file size");
+      Logger.LogInfo("Access", "Byte offset to be accessed exceeds actual file size");
       return FAIL;
     }
 
@@ -1111,7 +1113,7 @@ struct LinkedAllocation : Allocation {
     }
 
     // shrink amoutn cannot exceed current length
-    if (F.block_len < shrink_amount) {
+    if (F.block_len <= shrink_amount) {
       Logger.LogIssue("Shrink", "Shrink aborted because shrink amount is greater than file size");
       return FAIL;
     }

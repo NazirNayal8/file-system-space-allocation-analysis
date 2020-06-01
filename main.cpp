@@ -10,6 +10,11 @@
 #define INPUT_N 5
 #define REP 5
 
+/*
+  These structs below are used to modularize the handling of calls
+  when splitting and parsing the files
+*/
+
 struct Call {
 
   Call() {}
@@ -41,6 +46,11 @@ struct ShrinkCall : Call {
   ShrinkCall(int _fileID, int amount): fileID(_fileID), shrink_amount(amount) {}
 };
 
+/*
+  This type is used to collect the experiment result, and it additionally provides
+  some functions to facilitate applying arithmetic operations on the data, as well
+  as printing
+*/
 struct Results {
 
   double create_rejects;
@@ -110,6 +120,9 @@ struct Results {
   }
 };
 
+/*
+  storing the paths to the input files
+*/
 string InputFiles[] = {
   "io/input_8_600_5_5_0.txt",
   "io/input_1024_200_5_9_9.txt",
@@ -118,12 +131,18 @@ string InputFiles[] = {
   "io/input_2048_600_5_5_0.txt",
 };
 
+/*
+  storing block sizes for each file
+*/
 int BlockSizes[] = {8, 1024, 1024, 1024, 2048};
 
 int ID = 1;
 
 GeneralLogger Logger = GeneralLogger("Experiment");
 
+/*
+  This is used to generate IDs for files
+*/
 int GetID() {
   return ID++;
 }
@@ -132,6 +151,9 @@ void ResetID() {
   ID = 1;
 }
 
+/*
+  utitlity to compute time durations
+*/
 double GetDuration(TimePoint L, TimePoint R) {
 
   duration<double> D = R - L;
@@ -139,6 +161,9 @@ double GetDuration(TimePoint L, TimePoint R) {
   return D.count();
 }
 
+/*
+  converse a string to an integer, useful for parsing
+*/
 int ToInt(string s) {
 
   stringstream str(s);
@@ -149,6 +174,11 @@ int ToInt(string s) {
   return x;
 }
 
+/*
+  Given a string and a delimiter, split the string
+  according to the delimeter, and return the chunks
+  as a vector of strings
+*/
 vector<string> Split(string str, char del) {
 
   vector<string> Res;
@@ -173,6 +203,12 @@ vector<string> Split(string str, char del) {
   return Res;
 }
 
+/*
+  This function takes a reference to an allocation method
+  and a file name, and it runs the experiment on the given
+  input file. It collects all metrics and returns those as
+  a Results instance
+*/
 Results RunExperiment(Allocation& A, string file_name) {
 
   ResetID();
@@ -186,6 +222,7 @@ Results RunExperiment(Allocation& A, string file_name) {
     cerr << "File Open Failed\n";
   }
 
+  // counting occurence of calls to get average
   int create_count = 0;
   int access_count = 0;
   int extend_count = 0;
@@ -199,8 +236,10 @@ Results RunExperiment(Allocation& A, string file_name) {
 
   while (inFile >> line) {
 
-
+    // parse line
     vector<string> Args = Split(line, ':');
+
+    // creation call case
 
     if (Args[0] == "c") {
 
@@ -227,6 +266,8 @@ Results RunExperiment(Allocation& A, string file_name) {
       continue;
     }
 
+    // access call case
+
     if (Args[0] == "a") {
 
       vector<string> Args = Split(line, ':');
@@ -249,6 +290,8 @@ Results RunExperiment(Allocation& A, string file_name) {
 
       continue;
     }
+
+    // extension case
 
     if (Args[0] == "e") {
 
@@ -276,6 +319,8 @@ Results RunExperiment(Allocation& A, string file_name) {
 
       continue;
     }
+
+    // shrink case
 
     if (Args[0] == "sh") {
 
@@ -306,6 +351,8 @@ Results RunExperiment(Allocation& A, string file_name) {
 
   TimePoint r_total = TimeNow();
 
+  // divide by occurence of each call to get average
+
   if (create_count != 0) Res.create_time /= create_count;
   if (access_count != 0) Res.access_time /= access_count;
   if (extend_count != 0) Res.extend_time /= extend_count;
@@ -326,8 +373,12 @@ int main() {
 
   puts("It Has Begun");
 
+  // this will be used to store outputs of all files
+
   Results ContigRes[INPUT_N];
   Results LinkedRes[INPUT_N];
+
+  // run contiguous allocation 
 
   for (int i = 0 ; i < INPUT_N ; ++i) {
 
@@ -348,6 +399,7 @@ int main() {
     ContigRes[i].Div(REP);
   }
 
+  // run linked allocation
 
   for (int i = 0 ; i < INPUT_N ; ++i) {
 
@@ -367,6 +419,8 @@ int main() {
 
     LinkedRes[i].Div(REP);
   }
+
+  // print results
 
   for (int i = 0 ; i < INPUT_N ; ++i) {
 
